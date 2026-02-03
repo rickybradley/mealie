@@ -263,6 +263,12 @@ export default defineNuxtComponent({
         restricted: true,
       },
       {
+        icon: $globals.icons.inventory,
+        to: `/g/${groupSlug.value}/inventory`,
+        title: i18n.t("inventory.inventory"),
+        restricted: true,
+      },
+      {
         icon: $globals.icons.organizers,
         title: i18n.t("general.organizers"),
         restricted: true,

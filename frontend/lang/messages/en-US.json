@@ -1411,6 +1411,9 @@
     "create-a-cookbook": "Create a Cookbook",
     "cookbook": "Cookbook"
   },
+  "inventory": {
+    "inventory": "Inventory"
+  },
   "query-filter": {
     "logical-operators": {
       "and": "AND",
