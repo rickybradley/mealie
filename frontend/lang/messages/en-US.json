@@ -1412,7 +1412,11 @@
     "cookbook": "Cookbook"
   },
   "inventory": {
-    "inventory": "Inventory"
+    "inventory": "Inventory",
+    "create-new-item": "Create New Inventory Item",
+    "inventory-page": "Inventory Page",
+    "inventory-placeholder": "This is where you manage your inventory items.",
+    "inventory-items": "Inventory Items"
   },
   "query-filter": {
     "logical-operators": {
