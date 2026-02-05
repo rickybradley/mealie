@@ -775,3 +775,37 @@ export interface RecipeIngredientBase {
   note?: string | null;
   display?: string;
 }
+export interface InventoryItemBase {
+  foodId: string;
+  quantity?: number;
+  unitId?: string | null;
+  location?: string;
+  note?: string | null;
+}
+export interface InventoryItemCreate extends InventoryItemBase {
+  id?: string | null;
+}
+export interface InventoryItemUpdate extends InventoryItemBase {
+  id: string;
+}
+export interface InventoryItemOut extends InventoryItemBase {
+  id: string;
+  groupId: string;
+  householdId: string;
+  userId?: string | null;
+  food?: IngredientFood | null;
+  unit?: IngredientUnit | null;
+  createdAt?: string | null;
+  updatedAt?: string | null;
+}
+export interface InventoryItemPagination {
+  items: InventoryItemOut[];
+  page?: number;
+  pageSize?: number;
+  total?: number;
+}
+export interface InventoryItemsCollectionOut {
+  createdItems?: InventoryItemOut[];
+  updatedItems?: InventoryItemOut[];
+  deletedItems?: InventoryItemOut[];
+}

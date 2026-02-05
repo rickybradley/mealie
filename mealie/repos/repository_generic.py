@@ -515,3 +515,57 @@ class HouseholdRepositoryGeneric[Schema: MealieModel, Model: SqlAlchemyBase](Rep
         if household_id is NOT_SET:
             raise ValueError("household_id must be set")
         self._household_id = household_id if household_id else None
+
+    def create(self, data: Schema | BaseModel | dict) -> Schema:
+        """
+        Create a new item with automatic group and household scoping.
+        Injects group_id and household_id into the data before creation.
+        """
+        try:
+            data_dict = data if isinstance(data, dict) else data.model_dump()
+
+            # Inject scoped group_id and household_id to ensure data integrity
+            if self._group_id:
+                data_dict["group_id"] = self._group_id
+            if self._household_id:
+                data_dict["household_id"] = self._household_id
+
+            new_document = self.model(session=self.session, **data_dict)
+            self.session.add(new_document)
+            self.session.commit()
+        except Exception:
+            self.session.rollback()
+            raise
+
+        self.session.refresh(new_document)
+        return self.schema.model_validate(new_document)
+
+    def create_many(self, data: Iterable[Schema | dict]) -> list[Schema]:
+        """
+        Create multiple items with automatic group and household scoping.
+        Injects group_id and household_id into each item before creation.
+        """
+        new_documents = []
+        try:
+            for document in data:
+                data_dict = document if isinstance(document, dict) else document.model_dump()
+
+                # Inject scoped group_id and household_id to ensure data integrity
+                if self._group_id:
+                    data_dict["group_id"] = self._group_id
+                if self._household_id:
+                    data_dict["household_id"] = self._household_id
+
+                new_document = self.model(session=self.session, **data_dict)
+                new_documents.append(new_document)
+
+            self.session.add_all(new_documents)
+            self.session.commit()
+        except Exception:
+            self.session.rollback()
+            raise
+
+        for document in new_documents:
+            self.session.refresh(document)
+
+        return [self.schema.model_validate(doc) for doc in new_documents]

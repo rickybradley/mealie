@@ -83,6 +83,10 @@ households_cookbooks = "/api/households/cookbooks"
 """`/api/households/cookbooks`"""
 households_events_notifications = "/api/households/events/notifications"
 """`/api/households/events/notifications`"""
+households_inventory_items = "/api/households/inventory/items"
+"""`/api/households/inventory/items`"""
+households_inventory_items_create_bulk = "/api/households/inventory/items/create-bulk"
+"""`/api/households/inventory/items/create-bulk`"""
 households_invitations = "/api/households/invitations"
 """`/api/households/invitations`"""
 households_invitations_email = "/api/households/invitations/email"
@@ -344,6 +348,16 @@ def households_events_notifications_item_id(item_id):
 def households_events_notifications_item_id_test(item_id):
     """`/api/households/events/notifications/{item_id}/test`"""
     return f"{prefix}/households/events/notifications/{item_id}/test"
+
+
+def households_inventory_items_item_id(item_id):
+    """`/api/households/inventory/items/{item_id}`"""
+    return f"{prefix}/households/inventory/items/{item_id}"
+
+
+def households_inventory_item_id(item_id):
+    """`/api/households/inventory/items/{item_id}` (alias)"""
+    return households_inventory_items_item_id(item_id)
 
 
 def households_mealplans_item_id(item_id):

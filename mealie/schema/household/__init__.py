@@ -10,6 +10,15 @@ from .group_events import (
     GroupEventNotifierUpdate,
     GroupEventPagination,
 )
+from .group_inventory import (
+    InventoryItemBase,
+    InventoryItemCreate,
+    InventoryItemOut,
+    InventoryItemPagination,
+    InventoryItemsCollectionOut,
+    InventoryItemUpdate,
+    InventoryItemUpdateBulk,
+)
 from .group_recipe_action import (
     CreateGroupRecipeAction,
     GroupRecipeActionOut,
@@ -137,4 +146,11 @@ __all__ = [
     "ReadInviteToken",
     "SaveInviteToken",
     "SetPermissions",
+    "InventoryItemBase",
+    "InventoryItemCreate",
+    "InventoryItemOut",
+    "InventoryItemPagination",
+    "InventoryItemUpdate",
+    "InventoryItemUpdateBulk",
+    "InventoryItemsCollectionOut",
 ]

@@ -5,6 +5,7 @@ from . import (
     controller_group_notifications,
     controller_group_recipe_actions,
     controller_household_self_service,
+    controller_inventory,
     controller_invitations,
     controller_mealplan,
     controller_mealplan_rules,
@@ -18,6 +19,7 @@ router.include_router(controller_cookbooks.router)
 router.include_router(controller_group_notifications.router)
 router.include_router(controller_group_recipe_actions.router)
 router.include_router(controller_household_self_service.router)
+router.include_router(controller_inventory.router)
 router.include_router(controller_invitations.router)
 router.include_router(controller_shopping_lists.router)
 router.include_router(controller_shopping_lists.item_router)

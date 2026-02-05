@@ -12,7 +12,7 @@
           v-model:item-id="newInventoryItem.foodId"
           :items="allFoods"
           :label="$t('shopping-list.food')"
-          :icon="$globals.icons.foods"
+          :icon="globals.icons.foods"
           create
           @create="createInventoryFood"
         />
@@ -33,13 +33,20 @@
         <v-expansion-panels>
           <v-expansion-panel>
             <v-expansion-panel-title>
-              {{ $t('inventory.inventory-items') }}
+              {{ $t('inventory.inventory-items') }} ({{ inventoryItems.length }})
             </v-expansion-panel-title>
             <v-expansion-panel-text
-              v-for="(item, index) in inventoryItems"
-              :key="index"
+              v-for="item in inventoryItems"
+              :key="item.id"
             >
-              {{ item.name }}
+              <div class="d-flex justify-space-between align-center">
+                <span>{{ item.food?.name }} - Qty: {{ item.quantity }}</span>
+                <BaseButton
+                  delete
+                  small
+                  @click="deleteItem(item.id)"
+                />
+              </div>
             </v-expansion-panel-text>
           </v-expansion-panel>
         </v-expansion-panels>
@@ -49,35 +56,51 @@
 </template>
 
 <script lang="ts">
-import { ref, reactive, computed } from "vue";
+import { ref, reactive, onMounted } from "vue";
 import { defineNuxtComponent, useNuxtApp } from "#app";
-import { useI18n } from "#imports";
+import { useAuthBackend } from "~/composables/use-auth-backend";
 import InputLabelType from "~/components/global/InputLabelType.vue";
 import { useFoodStore, useFoodData } from "~/composables/store";
-import type { IngredientFood } from "~/lib/api/types/recipe";
+import { useUserApi } from "~/composables/api";
+import type { InventoryItemOut, InventoryItemCreate } from "~/lib/api/types/household";
 
 export default defineNuxtComponent({
   name: "InventoryPage",
   components: { InputLabelType },
   setup() {
-    const i18n = useI18n();
     const { $globals } = useNuxtApp();
+    const api = useUserApi();
+    const auth = useAuthBackend();
     const foodStore = useFoodStore();
     const foodData = useFoodData();
 
-    const inventoryItems = ref<IngredientFood[]>([]);
+    const inventoryItems = ref<InventoryItemOut[]>([]);
     const createDialog = ref(false);
-    const newInventoryItem = reactive<{ food: IngredientFood | null; foodId: string | null }>(
+    const isLoading = ref(false);
+    const newInventoryItem = reactive<{ food: any | null; foodId: string | null }>(
       {
         food: null,
         foodId: null,
       },
     );
 
-    const { store: allFoods } = useFoodStore(); // Directly use useFoodStore() for allFoods
+    const { store: allFoods } = useFoodStore();
 
-    // The foodItems passed to InputLabelType will now be directly from the store
-    // which should be a reactive array. No need for a separate computed or watch here.
+    async function loadInventory() {
+      try {
+        isLoading.value = true;
+        const { data } = await api.inventory.getAll();
+        if (data && data.items) {
+          inventoryItems.value = data.items;
+        }
+      }
+      catch (error) {
+        console.error("Failed to load inventory:", error);
+      }
+      finally {
+        isLoading.value = false;
+      }
+    }
 
     async function createInventoryFood(name: string) {
       foodData.data.name = name;
@@ -85,29 +108,76 @@ export default defineNuxtComponent({
       if (newFood) {
         newInventoryItem.food = newFood;
         newInventoryItem.foodId = newFood.id;
-        // The useFoodStore should handle refreshing its own state after creation,
-        // so `allFoods` should automatically update.
       }
       foodData.reset();
     }
 
-    function createOne() {
-      if (newInventoryItem.food) {
-        inventoryItems.value.push(newInventoryItem.food);
-        newInventoryItem.food = null;
-        newInventoryItem.foodId = null;
-        createDialog.value = false;
+    async function createOne() {
+      if (!newInventoryItem.foodId) {
+        return;
+      }
+
+      // Ensure the user session is loaded and authenticated before attempting create
+      if (auth.status.value !== "authenticated") {
+        try {
+          await auth.getSession();
+        }
+        catch (e) {
+          console.error("Failed to load session before creating inventory item:", e);
+        }
+      }
+
+      if (auth.status.value !== "authenticated") {
+        console.error("User is not authenticated — cannot create inventory item");
+        return;
+      }
+
+      try {
+        const itemData: InventoryItemCreate = {
+          food_id: newInventoryItem.foodId,
+          quantity: 1.0,
+          unit_id: null,
+          location: "freezer",
+          note: null,
+        };
+
+        const { data: newItem } = await api.inventory.createOne(itemData);
+        if (newItem) {
+          inventoryItems.value.push(newItem);
+          newInventoryItem.food = null;
+          newInventoryItem.foodId = null;
+          createDialog.value = false;
+        }
+      }
+      catch (error) {
+        console.error("Failed to create inventory item:", error);
       }
     }
+
+    async function deleteItem(itemId: string) {
+      try {
+        await api.inventory.deleteOne(itemId);
+        inventoryItems.value = inventoryItems.value.filter(item => item.id !== itemId);
+      }
+      catch (error) {
+        console.error("Failed to delete inventory item:", error);
+      }
+    }
+
+    onMounted(() => {
+      loadInventory();
+    });
 
     return {
       inventoryItems,
       createDialog,
+      isLoading,
       newInventoryItem,
-      allFoods, // Return allFoods directly to the template
+      allFoods,
       createInventoryFood,
       createOne,
-      $globals, // Make $globals available in the template
+      deleteItem,
+      globals: $globals,
     };
   },
 });

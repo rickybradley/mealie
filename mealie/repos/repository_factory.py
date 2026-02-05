@@ -13,6 +13,7 @@ from mealie.db.models.household.cookbook import CookBook
 from mealie.db.models.household.events import GroupEventNotifierModel
 from mealie.db.models.household.household import Household
 from mealie.db.models.household.household_to_recipe import HouseholdToRecipe
+from mealie.db.models.household.inventory import InventoryItem
 from mealie.db.models.household.invite_tokens import GroupInviteToken
 from mealie.db.models.household.mealplan import GroupMealPlan, GroupMealPlanRules
 from mealie.db.models.household.preferences import HouseholdPreferencesModel
@@ -46,6 +47,7 @@ from mealie.schema.cookbook.cookbook import ReadCookBook
 from mealie.schema.group.group_exports import GroupDataExport
 from mealie.schema.group.group_preferences import ReadGroupPreferences
 from mealie.schema.household.group_events import GroupEventNotifierOut
+from mealie.schema.household.group_inventory import InventoryItemOut
 from mealie.schema.household.group_recipe_action import GroupRecipeActionOut
 from mealie.schema.household.group_shopping_list import (
     ShoppingListItemOut,
@@ -74,6 +76,7 @@ from mealie.schema.user.user_passwords import PrivatePasswordResetToken
 from ._utils import NOT_SET, NotSet
 from .repository_generic import GroupRepositoryGeneric, HouseholdRepositoryGeneric
 from .repository_group import RepositoryGroup
+from .repository_inventory import RepositoryInventory
 from .repository_meals import RepositoryMeals
 from .repository_recipes import RepositoryRecipes
 from .repository_shopping_list import RepositoryShoppingList
@@ -296,6 +299,15 @@ class AllRepositories:
             PlanRulesOut,
             group_id=self.group_id,
             household_id=self.household_id,
+        )
+
+    # ================================================================
+    # Inventory
+
+    @cached_property
+    def inventory(self) -> RepositoryInventory:
+        return RepositoryInventory(
+            self.session, PK_ID, InventoryItem, InventoryItemOut, group_id=self.group_id, household_id=self.household_id
         )
 
     # ================================================================
