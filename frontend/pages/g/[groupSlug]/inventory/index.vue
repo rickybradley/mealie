@@ -9,12 +9,29 @@
       <v-card-text>
         <InputLabelType
           v-model="newInventoryItem.food"
-          v-model:item-id="newInventoryItem.foodId"
+          v-model:item-id="foodIdModel"
           :items="allFoods"
           :label="$t('shopping-list.food')"
           :icon="globals.icons.foods"
           create
           @create="createInventoryFood"
+        />
+        <v-text-field
+          v-model.number="newInventoryItem.quantity"
+          type="number"
+          :label="$t('inventory.quantity')"
+          step="1"
+          min="1"
+          class="mt-4"
+        />
+        <v-select
+          v-model="newInventoryItem.unitId"
+          :items="availableUnits"
+          :label="$t('inventory.unit')"
+          item-title="name"
+          item-value="id"
+          clearable
+          class="mt-4"
         />
       </v-card-text>
     </BaseDialog>
@@ -30,21 +47,21 @@
             @click="createDialog = true"
           />
         </v-container>
-        <v-expansion-panels>
+        <v-expansion-panels v-model="expandedPanels">
           <v-expansion-panel>
             <v-expansion-panel-title>
               {{ $t('inventory.inventory-items') }} ({{ inventoryItems.length }})
             </v-expansion-panel-title>
             <v-expansion-panel-text
-              v-for="item in inventoryItems"
-              :key="item.id"
+              v-for="item in groupedInventoryDisplayItems"
+              :key="item.foodName"
             >
               <div class="d-flex justify-space-between align-center">
-                <span>{{ item.food?.name }} - Qty: {{ item.quantity }}</span>
+                <span>{{ item.foodName }} - Qty: {{ item.units }}</span>
                 <BaseButton
                   delete
                   small
-                  @click="deleteItem(item.id)"
+                  @click="deleteGroupedItems(item.foodName)"
                 />
               </div>
             </v-expansion-panel-text>
@@ -56,13 +73,14 @@
 </template>
 
 <script lang="ts">
-import { ref, reactive, onMounted } from "vue";
+import { ref, reactive, onMounted, computed } from "vue";
 import { defineNuxtComponent, useNuxtApp } from "#app";
 import { useAuthBackend } from "~/composables/use-auth-backend";
 import InputLabelType from "~/components/global/InputLabelType.vue";
 import { useFoodStore, useFoodData } from "~/composables/store";
 import { useUserApi } from "~/composables/api";
 import type { InventoryItemOut, InventoryItemCreate } from "~/lib/api/types/household";
+import type { IngredientUnit } from "~/lib/api/types/recipe";
 
 export default defineNuxtComponent({
   name: "InventoryPage",
@@ -77,12 +95,58 @@ export default defineNuxtComponent({
     const inventoryItems = ref<InventoryItemOut[]>([]);
     const createDialog = ref(false);
     const isLoading = ref(false);
-    const newInventoryItem = reactive<{ food: any | null; foodId: string | null }>(
+    const expandedPanels = ref([0]); // Default to expanded
+    const availableUnits = ref<IngredientUnit[]>([]);
+    const newInventoryItem = reactive<{ food: any | null; foodId: string | null; quantity: number; unitId: string | null }>(
       {
         food: null,
         foodId: null,
+        quantity: 1,
+        unitId: null,
       },
     );
+
+    const foodIdModel = computed({
+      get: () => newInventoryItem.foodId || undefined,
+      set: (value: string | number | undefined) => {
+        newInventoryItem.foodId = (value as string) || null;
+      },
+    });
+
+    const groupedInventoryDisplayItems = computed(() => {
+      const grouped: Record<string, Record<string, { quantity: number; unitName: string | undefined }>> = {};
+
+      inventoryItems.value.forEach((item) => {
+        const foodName = item.food?.name || "Unknown Food";
+        const unitName = item.unit?.name || "unit"; // Fallback for unit name
+
+        if (!grouped[foodName]) {
+          grouped[foodName] = {};
+        }
+
+        if (!grouped[foodName][unitName]) {
+          grouped[foodName][unitName] = {
+            quantity: 0,
+            unitName: item.unit?.name,
+          };
+        }
+        grouped[foodName][unitName].quantity += item.quantity || 0;
+      });
+
+      // Convert grouped object to array and sort by food name
+      return Object.keys(grouped)
+        .sort((a, b) => a.localeCompare(b))
+        .map(foodName => ({
+          foodName,
+          units: Object.keys(grouped[foodName])
+            .map((unitKey) => {
+              const unitData = grouped[foodName][unitKey];
+              const qty = unitData.quantity;
+              const unit = unitData.unitName ? ` ${unitData.unitName}` : "";
+              return `${qty}${unit}`;
+            }).join(", "),
+        }));
+    });
 
     const { store: allFoods } = useFoodStore();
 
@@ -91,7 +155,11 @@ export default defineNuxtComponent({
         isLoading.value = true;
         const { data } = await api.inventory.getAll();
         if (data && data.items) {
-          inventoryItems.value = data.items;
+          inventoryItems.value = data.items.sort((a, b) => {
+            const nameA = a.food?.name?.toLowerCase() || "";
+            const nameB = b.food?.name?.toLowerCase() || "";
+            return nameA.localeCompare(nameB);
+          });
         }
       }
       catch (error) {
@@ -99,6 +167,23 @@ export default defineNuxtComponent({
       }
       finally {
         isLoading.value = false;
+      }
+    }
+
+    async function loadUnits() {
+      try {
+        const { data } = await api.units.getAll();
+        if (data && data.items) {
+          availableUnits.value = data.items;
+          // Set default unit to "Pack" if available
+          const packUnit = data.items.find((unit: IngredientUnit) => unit.name?.toLowerCase() === "pack");
+          if (packUnit) {
+            newInventoryItem.unitId = packUnit.id;
+          }
+        }
+      }
+      catch (error) {
+        console.error("Failed to load units:", error);
       }
     }
 
@@ -134,18 +219,31 @@ export default defineNuxtComponent({
 
       try {
         const itemData: InventoryItemCreate = {
-          food_id: newInventoryItem.foodId,
-          quantity: 1.0,
-          unit_id: null,
+          foodId: newInventoryItem.foodId,
+          quantity: newInventoryItem.quantity,
+          unitId: newInventoryItem.unitId,
           location: "freezer",
           note: null,
         };
 
         const { data: newItem } = await api.inventory.createOne(itemData);
         if (newItem) {
-          inventoryItems.value.push(newItem);
+          // Check if item already exists in the list (smart-merge case)
+          const existingIndex = inventoryItems.value.findIndex(item => item.id === newItem.id);
+          if (existingIndex >= 0) {
+            // Update existing item
+            inventoryItems.value[existingIndex] = newItem;
+          }
+          else {
+            // Add new item
+            inventoryItems.value.push(newItem);
+          }
           newInventoryItem.food = null;
           newInventoryItem.foodId = null;
+          newInventoryItem.quantity = 1;
+          // Reset to default "Pack" unit if available
+          const packUnit = availableUnits.value.find(unit => unit.name?.toLowerCase() === "pack");
+          newInventoryItem.unitId = packUnit?.id || null;
           createDialog.value = false;
         }
       }
@@ -154,29 +252,43 @@ export default defineNuxtComponent({
       }
     }
 
-    async function deleteItem(itemId: string) {
+    async function deleteGroupedItems(foodName: string) {
       try {
-        await api.inventory.deleteOne(itemId);
-        inventoryItems.value = inventoryItems.value.filter(item => item.id !== itemId);
+        isLoading.value = true;
+        const itemsToDelete = inventoryItems.value.filter(item => item.food?.name === foodName);
+
+        for (const item of itemsToDelete) {
+          await api.inventory.deleteOne(item.id);
+        }
+
+        inventoryItems.value = inventoryItems.value.filter(item => item.food?.name !== foodName);
       }
       catch (error) {
-        console.error("Failed to delete inventory item:", error);
+        console.error("Failed to delete grouped inventory items:", error);
+      }
+      finally {
+        isLoading.value = false;
       }
     }
 
     onMounted(() => {
       loadInventory();
+      loadUnits();
     });
 
     return {
       inventoryItems,
       createDialog,
       isLoading,
+      expandedPanels,
+      availableUnits,
       newInventoryItem,
+      foodIdModel,
+      groupedInventoryDisplayItems,
       allFoods,
       createInventoryFood,
       createOne,
-      deleteItem,
+      deleteGroupedItems,
       globals: $globals,
     };
   },
