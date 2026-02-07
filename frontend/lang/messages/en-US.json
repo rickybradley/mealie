@@ -1416,7 +1416,9 @@
     "create-new-item": "Create New Inventory Item",
     "inventory-page": "Inventory Page",
     "inventory-placeholder": "This is where you manage your inventory items.",
-    "inventory-items": "Inventory Items"
+    "inventory-items": "Inventory Items",
+    "quantity": "Quantity",
+    "unit": "Unit"
   },
   "query-filter": {
     "logical-operators": {

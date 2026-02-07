@@ -254,3 +254,147 @@ def test_inventory_item_delete_many(api_client: TestClient, unique_user: TestUse
             headers=unique_user.token,
         )
         assert response.status_code == 404
+
+
+def test_inventory_item_create_with_custom_quantity(api_client: TestClient, unique_user: TestUser) -> None:
+    """Test creating an inventory item with a custom quantity"""
+    # Get a food first
+    foods = unique_user.repos.ingredient_foods.get_all(limit=1)
+    if not foods:
+        pytest.skip("No ingredient foods available for testing")
+
+    item_data = {
+        "food_id": str(foods[0].id),
+        "quantity": 5.0,
+        "unit_id": None,
+        "location": "freezer",
+        "note": "test custom quantity",
+    }
+
+    response = api_client.post(
+        api_routes.households_inventory_items,
+        json=item_data,
+        headers=unique_user.token,
+    )
+    as_json = utils.assert_deserialize(response, 201)
+    assert as_json["foodId"] == str(foods[0].id)
+    assert as_json["quantity"] == 5.0
+    assert as_json["location"] == "freezer"
+
+
+def test_inventory_item_smart_merge_same_unit(api_client: TestClient, unique_user: TestUser) -> None:
+    """Test that creating an item for existing food with same unit merges quantities"""
+    # Get a food first
+    foods = unique_user.repos.ingredient_foods.get_all(limit=1)
+    if not foods:
+        pytest.skip("No ingredient foods available for testing")
+
+    # Create first item with quantity 5
+    item_data_1 = {
+        "food_id": str(foods[0].id),
+        "quantity": 5.0,
+        "unit_id": None,
+        "location": "freezer",
+        "note": "first item",
+    }
+
+    response = api_client.post(
+        api_routes.households_inventory_items,
+        json=item_data_1,
+        headers=unique_user.token,
+    )
+    first_item = utils.assert_deserialize(response, 201)
+    assert first_item["quantity"] == 5.0
+    first_item_id = first_item["id"]
+
+    # Create second item with same food and unit, quantity 3
+    item_data_2 = {
+        "food_id": str(foods[0].id),
+        "quantity": 3.0,
+        "unit_id": None,
+        "location": "freezer",
+        "note": "second item",
+    }
+
+    response = api_client.post(
+        api_routes.households_inventory_items,
+        json=item_data_2,
+        headers=unique_user.token,
+    )
+    second_item = utils.assert_deserialize(response, 201)
+
+    # Verify the quantity was merged (should be 8)
+    assert second_item["quantity"] == 8.0
+    # Verify it's the same item (same ID)
+    assert second_item["id"] == first_item_id
+
+    # Verify only one item exists for this food
+    response = api_client.get(
+        api_routes.households_inventory_items,
+        headers=unique_user.token,
+    )
+    items_list = utils.assert_deserialize(response, 200)
+    matching_items = [item for item in items_list["items"] if item["foodId"] == str(foods[0].id)]
+    assert len(matching_items) == 1
+    assert matching_items[0]["quantity"] == 8.0
+
+
+def test_inventory_item_no_merge_different_units(api_client: TestClient, unique_user: TestUser) -> None:
+    """Test that creating items with different units for same food creates separate items"""
+    # Get foods and units
+    foods = unique_user.repos.ingredient_foods.get_all(limit=1)
+    if not foods:
+        pytest.skip("No ingredient foods available for testing")
+
+    units = unique_user.repos.units.get_all(limit=2)
+    if len(units) < 2:
+        pytest.skip("Not enough units available for testing")
+
+    # Create first item with unit 1
+    item_data_1 = {
+        "food_id": str(foods[0].id),
+        "quantity": 5.0,
+        "unit_id": str(units[0].id),
+        "location": "freezer",
+        "note": "item with unit 1",
+    }
+
+    response = api_client.post(
+        api_routes.households_inventory_items,
+        json=item_data_1,
+        headers=unique_user.token,
+    )
+    first_item = utils.assert_deserialize(response, 201)
+    assert first_item["quantity"] == 5.0
+
+    # Create second item with same food but different unit
+    item_data_2 = {
+        "food_id": str(foods[0].id),
+        "quantity": 3.0,
+        "unit_id": str(units[1].id),
+        "location": "freezer",
+        "note": "item with unit 2",
+    }
+
+    response = api_client.post(
+        api_routes.households_inventory_items,
+        json=item_data_2,
+        headers=unique_user.token,
+    )
+    second_item = utils.assert_deserialize(response, 201)
+
+    # Verify quantities were NOT merged
+    assert second_item["quantity"] == 3.0
+    # Verify it's a different item (different ID)
+    assert second_item["id"] != first_item["id"]
+
+    # Verify two separate items exist for this food
+    response = api_client.get(
+        api_routes.households_inventory_items,
+        headers=unique_user.token,
+    )
+    items_list = utils.assert_deserialize(response, 200)
+    matching_items = [item for item in items_list["items"] if item["foodId"] == str(foods[0].id)]
+    assert len(matching_items) == 2
+    quantities = sorted([item["quantity"] for item in matching_items])
+    assert quantities == [3.0, 5.0]
