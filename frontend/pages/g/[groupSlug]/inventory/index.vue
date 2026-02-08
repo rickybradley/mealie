@@ -58,7 +58,7 @@
             >
               <div class="d-flex justify-space-between align-center">
                 <span class="d-flex align-center">{{ item.foodName }}</span>
-                <div class="d-flex">
+                <div class="d-flex align-center">
                   <span class="mr-2 text-subtitle-1 d-flex align-center justify-center">{{ displayedQuantityPerFood[item.foodName] || 0 }}</span>
                   <v-select
                     v-model="selectedUnitPerFood[item.foodName]"
